@@ -306,6 +306,10 @@ void NativeWindow::ShowDefinitionForSelection() {
   NOTIMPLEMENTED();
 }
 
+void NativeWindow::SetVibrancyVisibility(bool show) {
+  NOTIMPLEMENTED();
+}
+
 void NativeWindow::SetAutoHideMenuBar(bool auto_hide) {
 }
 

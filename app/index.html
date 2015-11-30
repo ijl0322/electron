@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Hello World!</title>
+<link rel="stylesheet" type="text/css" href="style.css" />
+<script>
+var show = true
+function toggle(btn) {
+  var win = require('remote').require('browser-window').getFocusedWindow();
+  show = !show
+  win.setVibrancyVisibility(show)
+  btn.innerHTML = ( show ? 'Disable vibrancy' : 'Enable vibrancy' )
+}
+</script>
+</head>
+<body>
+  <div class="right">
+    <button onclick="toggle(this)">Disable vibrancy</button>
+  </div>
+  <div class="left">
+    As you can see, this red square is not vibrant
+  </div>
+  <div class="box"></div>
+</body>
+</html>

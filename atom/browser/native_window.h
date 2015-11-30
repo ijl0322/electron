@@ -166,6 +166,9 @@ class NativeWindow : public base::SupportsUserData,
   // Show popup dictionary.
   virtual void ShowDefinitionForSelection();
 
+  // Toggle vibrant views
+  virtual void SetVibrancyVisibility(bool show);
+
   // Toggle the menu bar.
   virtual void SetAutoHideMenuBar(bool auto_hide);
   virtual bool IsMenuBarAutoHide();
