@@ -69,8 +69,6 @@ class NativeWindowMac : public NativeWindow {
                       const std::string& description) override;
   void ShowDefinitionForSelection() override;
 
-  void SetVibrancyVisibility(bool show) override;
-
   void SetVisibleOnAllWorkspaces(bool visible) override;
   bool IsVisibleOnAllWorkspaces() override;
 
@@ -106,8 +104,6 @@ class NativeWindowMac : public NativeWindow {
 
   base::scoped_nsobject<AtomNSWindow> window_;
   base::scoped_nsobject<AtomNSWindowDelegate> window_delegate_;
-
-  base::scoped_nsobject<NSView> vibrant_view_;
 
   // The view that will fill the whole frameless window.
   base::scoped_nsobject<FullSizeContentView> content_view_;

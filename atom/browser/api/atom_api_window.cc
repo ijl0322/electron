@@ -596,10 +596,6 @@ void Window::UnhookAllWindowMessages() {
 void Window::ShowDefinitionForSelection() {
   window_->ShowDefinitionForSelection();
 }
-
-void Window::SetVibrancyVisibility(bool show) {
-  window_->SetVibrancyVisibility(show);
-}
 #endif
 
 void Window::SetAspectRatio(double aspect_ratio, mate::Arguments* args) {
@@ -703,7 +699,6 @@ void Window::BuildPrototype(v8::Isolate* isolate,
 #if defined(OS_MACOSX)
       .SetMethod("showDefinitionForSelection",
                  &Window::ShowDefinitionForSelection)
-      .SetMethod("setVibrancyVisibility", &Window::SetVibrancyVisibility)
 #endif
       .SetProperty("id", &Window::ID, true)
       .SetProperty("webContents", &Window::WebContents, true);

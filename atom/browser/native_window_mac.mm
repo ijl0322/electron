@@ -385,27 +385,14 @@ NativeWindowMac::NativeWindowMac(
   [window_ setShell:this];
   [window_ setEnableLargerThanScreen:enable_larger_than_screen()];
 
-  if (NSClassFromString(@"NSVisualEffectView")) {
-    NSVisualEffectView *vibrantView = [[NSVisualEffectView alloc] initWithFrame:NSMakeRect(0, 0, 200, cocoa_bounds.size.height)];
-    vibrantView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-    vibrantView.state = NSVisualEffectStateActive;
-    vibrantView.appearance = [NSAppearance appearanceNamed:@"NSAppearanceNameVibrantLight"];
-    [vibrantView setHidden:NO];
-    [vibrantView setAutoresizingMask:NSViewHeightSizable];
-
-    [[window_ contentView] addSubview:vibrantView];
-    vibrant_view_.reset(vibrantView);
-  }
-
   window_delegate_.reset([[AtomNSWindowDelegate alloc] initWithShell:this]);
   [window_ setDelegate:window_delegate_];
 
   if (transparent()) {
     // Make window has transparent background.
     [window_ setOpaque:NO];
-    //[window_ setHasShadow:NO];
-    //[window_ setBackgroundColor:[NSColor clearColor]];
-    [window_ setBackgroundColor:[NSColor whiteColor]];
+    [window_ setHasShadow:NO];
+    [window_ setBackgroundColor:[NSColor clearColor]];
   }
 
   if (windowType == "desktop") {
@@ -757,11 +744,6 @@ void NativeWindowMac::ShowDefinitionForSelection() {
   rwhv->ShowDefinitionForSelection();
 }
 
-void NativeWindowMac::SetVibrancyVisibility(bool show) {
-  NSView *view = vibrant_view_.get();
-  if (view) [view setHidden:!show];
-}
-
 void NativeWindowMac::SetVisibleOnAllWorkspaces(bool visible) {
   NSUInteger collectionBehavior = [window_ collectionBehavior];
   if (visible) {
@@ -850,7 +832,6 @@ void NativeWindowMac::InstallView() {
   NSView* view = inspectable_web_contents()->GetView()->GetNativeView();
   if (has_frame()) {
     [view setFrame:[[window_ contentView] bounds]];
-    view.appearance = [NSAppearance appearanceNamed:@"NSAppearanceNameAqua"];
     [[window_ contentView] addSubview:view];
   } else {
     // In OSX 10.10, adding subviews to the root view for the NSView hierarchy

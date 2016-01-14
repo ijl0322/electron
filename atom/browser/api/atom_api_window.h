@@ -158,7 +158,6 @@ class Window : public mate::TrackableObject<Window>,
 
 #if defined(OS_MACOSX)
   void ShowDefinitionForSelection();
-  void SetVibrancyVisibility(bool show);
 #endif
 
   void SetVisibleOnAllWorkspaces(bool visible);
