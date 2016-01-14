@@ -64,6 +64,11 @@ the `will-quit` and `window-all-closed` events.
 
 ### Event: 'quit'
 
+Returns:
+
+* `event` Event
+* `exitCode` Integer
+
 Emitted when the application is quitting.
 
 ### Event: 'open-file' _OS X_
@@ -334,7 +339,8 @@ Adds `tasks` to the [Tasks][tasks] category of the JumpList on Windows.
 
 `tasks` is an array of `Task` objects in the following format:
 
-`Task` Object
+`Task` Object:
+
 * `program` String - Path of the program to execute, usually you should
   specify `process.execPath` which opens the current program.
 * `arguments` String - The command line arguments when `program` is

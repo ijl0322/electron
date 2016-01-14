@@ -17,6 +17,7 @@ LINUX_DEPS = [
   'libgtk2.0-dev',
   'libnotify-dev',
   'libnss3-dev',
+  'libxtst-dev',
   'gcc-multilib',
   'g++-multilib',
 ]
@@ -64,7 +65,6 @@ def main():
   run_script('cpplint.py')
   if PLATFORM != 'win32':
     run_script('pylint.py')
-  run_script('coffeelint.py')
   if is_release:
     run_script('build.py', ['-c', 'R'])
     run_script('create-dist.py')

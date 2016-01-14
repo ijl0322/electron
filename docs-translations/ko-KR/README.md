@@ -6,10 +6,17 @@ URL에 포함되어 있습니다. 만약 그렇지 않다면, 아마 현재 보�
 수 있습니다. 또한 GitHub 인터페이스의 "Switch branches/tags" 드롭다운 메뉴에서도
 사용 중인 Electron 버전으로 변경할 수 있습니다.
 
-**역주:** 한국어 번역 문서는 atom.io에 반영이 되어있지 않습니다. 따라서 번역 문서는
-GitHub 프로젝트내에서만 볼 수 있고 `master` 브랜치의 문서는 현재 개발중인 프로젝트의
+**역주:** 한국어 번역 문서는 `atom.io`에 반영되어 있지 않습니다. 따라서 번역 문서는
+GitHub 프로젝트내에서만 볼 수 있으며 `master` 브랜치의 문서는 현재 개발중인 프로젝트의
 문서입니다. 한국어 번역 문서는 현재 `upstream` 원본 문서의 변경에 따라 최대한 문서의
 버전을 맞추려고 노력하고 있지만 가끔 누락된 번역이 존재할 수 있습니다.
+
+## FAQ
+
+Electron에 대해 자주 묻는 질문이 있습니다. 이슈를 생성하기 전에 다음 문서를 먼저
+확인해 보세요:
+
+* [Electron FAQ](faq/electron-faq.md)
 
 ## 개발 가이드
 
@@ -22,6 +29,7 @@ GitHub 프로젝트내에서만 볼 수 있고 `master` 브랜치의 문서는 �
 * [Selenium 과 WebDriver 사용하기](tutorial/using-selenium-and-webdriver.md)
 * [개발자 도구 확장 기능](tutorial/devtools-extension.md)
 * [Pepper 플래시 플러그인 사용하기](tutorial/using-pepper-flash-plugin.md)
+* [Widevine CDM 플러그인 사용하기](tutorial/using-widevine-cdm-plugin.md)
 
 ## 튜토리얼
 
@@ -62,6 +70,7 @@ GitHub 프로젝트내에서만 볼 수 있고 `master` 브랜치의 문서는 �
 
 ### 랜더러 프로세스에서 사용할 수 있는 모듈 (웹 페이지):
 
+* [desktopCapturer](api/desktop-capturer.md)
 * [ipcRenderer](api/ipc-renderer.md)
 * [remote](api/remote.md)
 * [webFrame](api/web-frame.md)

@@ -5,6 +5,7 @@
 #include "atom/browser/api/atom_api_web_contents.h"
 
 #include <set>
+#include <string>
 
 #include "atom/browser/api/atom_api_session.h"
 #include "atom/browser/api/atom_api_window.h"
@@ -32,7 +33,6 @@
 #include "chrome/browser/printing/print_view_manager_basic.h"
 #include "chrome/browser/printing/print_preview_message_handler.h"
 #include "content/common/view_messages.h"
-#include "content/public/browser/browser_plugin_guest_manager.h"
 #include "content/public/browser/favicon_status.h"
 #include "content/public/browser/native_web_keyboard_event.h"
 #include "content/public/browser/navigation_details.h"
@@ -72,15 +72,6 @@ void SetUserAgentInIO(scoped_refptr<net::URLRequestContextGetter> getter,
       new net::StaticHttpUserAgentSettings(
           net::HttpUtil::GenerateAcceptLanguageHeader(accept_lang),
           user_agent));
-}
-
-bool NotifyZoomLevelChanged(
-    double level, content::WebContents* guest_web_contents) {
-  guest_web_contents->SendToAllFrames(
-      new AtomViewMsg_SetZoomLevel(MSG_ROUTING_NONE, level));
-
-  // Return false to iterate over all guests.
-  return false;
 }
 
 }  // namespace
@@ -148,7 +139,7 @@ struct Converter<net::HttpResponseHeaders*> {
       std::string key;
       std::string value;
       while (headers->EnumerateHeaderLines(&iter, &key, &value)) {
-        key = base::StringToLowerASCII(key);
+        key = base::ToLowerASCII(key);
         if (response_headers.HasKey(key)) {
           base::ListValue* values = nullptr;
           if (response_headers.GetList(key, &values))
@@ -171,7 +162,7 @@ struct Converter<content::SavePageType> {
     std::string save_type;
     if (!ConvertFromV8(isolate, val, &save_type))
       return false;
-    save_type = base::StringToLowerASCII(save_type);
+    save_type = base::ToLowerASCII(save_type);
     if (save_type == "htmlonly") {
       *out = content::SAVE_PAGE_TYPE_AS_ONLY_HTML;
     } else if (save_type == "htmlcomplete") {
@@ -193,8 +184,6 @@ namespace atom {
 namespace api {
 
 namespace {
-
-v8::Persistent<v8::ObjectTemplate> template_;
 
 // The wrapWebContents function which is implemented in JavaScript
 using WrapWebContentsCallback = base::Callback<void(v8::Local<v8::Value>)>;
@@ -225,7 +214,8 @@ WebContents::WebContents(content::WebContents* web_contents)
 }
 
 WebContents::WebContents(v8::Isolate* isolate,
-                         const mate::Dictionary& options) {
+                         const mate::Dictionary& options)
+    : request_id_(0) {
   // Whether it is a guest WebContents.
   bool is_guest = false;
   options.Get("isGuest", &is_guest);
@@ -290,7 +280,11 @@ WebContents::WebContents(v8::Isolate* isolate,
 }
 
 WebContents::~WebContents() {
-  Destroy();
+  // The webview's lifetime is completely controlled by GuestViewManager, so
+  // it is always destroyed by calling webview.destroy(), we need to make
+  // sure the "destroyed" event is emitted manually.
+  if (type_ == WEB_VIEW && managed_web_contents())
+    WebContentsDestroyed();
 }
 
 bool WebContents::AddMessageToConsole(content::WebContents* source,
@@ -414,6 +408,34 @@ bool WebContents::HandleContextMenu(const content::ContextMenuParams& params) {
   return true;
 }
 
+bool WebContents::OnGoToEntryOffset(int offset) {
+  GoToOffset(offset);
+  return false;
+}
+
+void WebContents::FindReply(content::WebContents* web_contents,
+                            int request_id,
+                            int number_of_matches,
+                            const gfx::Rect& selection_rect,
+                            int active_match_ordinal,
+                            bool final_update) {
+  v8::Locker locker(isolate());
+  v8::HandleScope handle_scope(isolate());
+
+  mate::Dictionary result = mate::Dictionary::CreateEmpty(isolate());
+  if (number_of_matches == -1) {
+    result.Set("requestId", request_id);
+    result.Set("selectionArea", selection_rect);
+    result.Set("finalUpdate", final_update);
+    Emit("found-in-page", result);
+  } else if (final_update) {
+    result.Set("requestId", request_id);
+    result.Set("matches", number_of_matches);
+    result.Set("finalUpdate", final_update);
+    Emit("found-in-page", result);
+  }
+}
+
 void WebContents::BeforeUnloadFired(const base::TimeTicks& proceed_time) {
   // Do nothing, we override this method just to avoid compilation error since
   // there are two virtual functions named BeforeUnloadFired.
@@ -445,6 +467,22 @@ void WebContents::PluginCrashed(const base::FilePath& plugin_path,
   Emit("plugin-crashed", info.name, info.version);
 }
 
+void WebContents::MediaStartedPlaying() {
+  Emit("media-started-playing");
+}
+
+void WebContents::MediaPaused() {
+  Emit("media-paused");
+}
+
+void WebContents::DidChangeThemeColor(SkColor theme_color) {
+  std::string hex_theme_color = base::StringPrintf("#%02X%02X%02X",
+    SkColorGetR(theme_color),
+    SkColorGetG(theme_color),
+    SkColorGetB(theme_color));
+  Emit("did-change-theme-color", hex_theme_color);
+}
+
 void WebContents::DocumentLoadedInFrame(
     content::RenderFrameHost* render_frame_host) {
   if (!render_frame_host->GetParent())
@@ -460,14 +498,13 @@ void WebContents::DidFinishLoad(content::RenderFrameHost* render_frame_host,
     Emit("did-finish-load");
 }
 
-// this error occurs when host could not be found
 void WebContents::DidFailProvisionalLoad(
     content::RenderFrameHost* render_frame_host,
-    const GURL& validated_url,
+    const GURL& url,
     int error_code,
     const base::string16& error_description,
     bool was_ignored_by_handler) {
-  Emit("did-fail-load", error_code, error_description, validated_url);
+  Emit("did-fail-provisional-load", error_code, error_description, url);
 }
 
 void WebContents::DidFailLoad(content::RenderFrameHost* render_frame_host,
@@ -515,14 +552,17 @@ void WebContents::DidNavigateMainFrame(
     const content::LoadCommittedDetails& details,
     const content::FrameNavigateParams& params) {
   if (details.is_navigation_to_different_page())
-    Emit("did-navigate-to-different-page");
+    Emit("did-navigate", params.url);
+  else if (details.is_in_page)
+    Emit("did-navigate-in-page", params.url);
 }
 
 void WebContents::TitleWasSet(content::NavigationEntry* entry,
                               bool explicit_set) {
-  // Back/Forward navigation may have pruned entries.
   if (entry)
-    Emit("page-title-set", entry->GetTitle(), explicit_set);
+    Emit("-page-title-updated", entry->GetTitle(), explicit_set);
+  else
+    Emit("-page-title-updated", "", explicit_set);
 }
 
 void WebContents::DidUpdateFaviconURL(
@@ -571,7 +611,6 @@ bool WebContents::OnMessageReceived(const IPC::Message& message) {
     IPC_MESSAGE_HANDLER(AtomViewHostMsg_Message, OnRendererMessage)
     IPC_MESSAGE_HANDLER_DELAY_REPLY(AtomViewHostMsg_Message_Sync,
                                     OnRendererMessageSync)
-    IPC_MESSAGE_HANDLER(AtomViewHostMsg_ZoomLevelChanged, OnZoomLevelChanged)
     IPC_MESSAGE_UNHANDLED(handled = false)
   IPC_END_MESSAGE_MAP()
 
@@ -581,27 +620,30 @@ bool WebContents::OnMessageReceived(const IPC::Message& message) {
 void WebContents::WebContentsDestroyed() {
   // The RenderViewDeleted was not called when the WebContents is destroyed.
   RenderViewDeleted(web_contents()->GetRenderViewHost());
-  Emit("destroyed");
+
+  // This event is only for internal use, which is emitted when WebContents is
+  // being destroyed.
+  Emit("will-destroy");
+
+  // Cleanup relationships with other parts.
   RemoveFromWeakMap();
+  if (type_ == WEB_VIEW)
+    guest_delegate_->Destroy();
+
+  // We can not call Destroy here because we need to call Emit first, but we
+  // also do not want any method to be used, so just mark as destroyed here.
+  MarkDestroyed();
+
+  Emit("destroyed");
+
+  // Destroy the native class in next tick.
+  base::MessageLoop::current()->PostTask(FROM_HERE, GetDestroyClosure());
 }
 
 void WebContents::NavigationEntryCommitted(
     const content::LoadCommittedDetails& details) {
   Emit("navigation-entry-commited", details.entry->GetURL(),
        details.is_in_page, details.did_replace_entry);
-}
-
-void WebContents::Destroy() {
-  session_.Reset();
-  if (type_ == WEB_VIEW && managed_web_contents()) {
-    // When force destroying the "destroyed" event is not emitted.
-    WebContentsDestroyed();
-
-    guest_delegate_->Destroy();
-
-    Observe(nullptr);
-    DestroyWebContents();
-  }
 }
 
 int WebContents::GetID() const {
@@ -632,6 +674,15 @@ void WebContents::LoadURL(const GURL& url, const mate::Dictionary& options) {
   params.should_clear_history_list = true;
   params.override_user_agent = content::NavigationController::UA_OVERRIDE_TRUE;
   web_contents()->GetController().LoadURLWithParams(params);
+}
+
+void WebContents::DownloadURL(const GURL& url) {
+  auto browser_context = web_contents()->GetBrowserContext();
+  auto download_manager =
+    content::BrowserContext::GetDownloadManager(browser_context);
+
+  download_manager->DownloadUrl(
+    content::DownloadUrlParameters::FromWebContents(web_contents(), url));
 }
 
 GURL WebContents::GetURL() const {
@@ -698,11 +749,6 @@ bool WebContents::SavePage(const base::FilePath& full_file_path,
   return handler->Handle(full_file_path, save_type);
 }
 
-void WebContents::ExecuteJavaScript(const base::string16& code,
-                                    bool has_user_gesture) {
-  Send(new AtomViewMsg_ExecuteJavaScript(routing_id(), code, has_user_gesture));
-}
-
 void WebContents::OpenDevTools(mate::Arguments* args) {
   if (type_ == REMOTE)
     return;
@@ -730,6 +776,13 @@ bool WebContents::IsDevToolsOpened() {
     return false;
 
   return managed_web_contents()->IsDevToolsViewShowing();
+}
+
+bool WebContents::IsDevToolsFocused() {
+  if (type_ == REMOTE)
+    return false;
+
+  return managed_web_contents()->GetView()->IsDevToolsViewFocused();
 }
 
 void WebContents::EnableDeviceEmulation(
@@ -886,6 +939,25 @@ void WebContents::ReplaceMisspelling(const base::string16& word) {
   web_contents()->ReplaceMisspelling(word);
 }
 
+uint32 WebContents::FindInPage(mate::Arguments* args) {
+  uint32 request_id = GetNextRequestId();
+  base::string16 search_text;
+  blink::WebFindOptions options;
+  if (!args->GetNext(&search_text) || search_text.empty()) {
+    args->ThrowError("Must provide a non-empty search content");
+    return 0;
+  }
+
+  args->GetNext(&options);
+
+  web_contents()->Find(request_id, search_text, options);
+  return request_id;
+}
+
+void WebContents::StopFindInPage(content::StopFindAction action) {
+  web_contents()->StopFinding(action);
+}
+
 void WebContents::Focus() {
   web_contents()->Focus();
 }
@@ -916,7 +988,7 @@ void WebContents::SendInputEvent(v8::Isolate* isolate,
       return;
     }
   } else if (blink::WebInputEvent::isKeyboardEventType(type)) {
-    content::NativeWebKeyboardEvent keyboard_event;;
+    content::NativeWebKeyboardEvent keyboard_event;
     if (mate::ConvertFromV8(isolate, input_event, &keyboard_event)) {
       host->ForwardKeyboardEvent(keyboard_event);
       return;
@@ -987,82 +1059,75 @@ v8::Local<v8::Value> WebContents::DevToolsWebContents(v8::Isolate* isolate) {
     return v8::Local<v8::Value>::New(isolate, devtools_web_contents_);
 }
 
-mate::ObjectTemplateBuilder WebContents::GetObjectTemplateBuilder(
-    v8::Isolate* isolate) {
-  if (template_.IsEmpty())
-    template_.Reset(isolate, mate::ObjectTemplateBuilder(isolate)
-        .SetMethod("destroy", &WebContents::Destroy, true)
-        .SetMethod("isDestroyed", &WebContents::IsDestroyed, true)
-        .SetMethod("getId", &WebContents::GetID)
-        .SetMethod("equal", &WebContents::Equal)
-        .SetMethod("_loadURL", &WebContents::LoadURL)
-        .SetMethod("_getURL", &WebContents::GetURL)
-        .SetMethod("getTitle", &WebContents::GetTitle)
-        .SetMethod("isLoading", &WebContents::IsLoading)
-        .SetMethod("isWaitingForResponse", &WebContents::IsWaitingForResponse)
-        .SetMethod("_stop", &WebContents::Stop)
-        .SetMethod("_goBack", &WebContents::GoBack)
-        .SetMethod("_goForward", &WebContents::GoForward)
-        .SetMethod("_goToOffset", &WebContents::GoToOffset)
-        .SetMethod("isCrashed", &WebContents::IsCrashed)
-        .SetMethod("setUserAgent", &WebContents::SetUserAgent)
-        .SetMethod("getUserAgent", &WebContents::GetUserAgent)
-        .SetMethod("insertCSS", &WebContents::InsertCSS)
-        .SetMethod("savePage", &WebContents::SavePage)
-        .SetMethod("_executeJavaScript", &WebContents::ExecuteJavaScript)
-        .SetMethod("openDevTools", &WebContents::OpenDevTools)
-        .SetMethod("closeDevTools", &WebContents::CloseDevTools)
-        .SetMethod("isDevToolsOpened", &WebContents::IsDevToolsOpened)
-        .SetMethod("enableDeviceEmulation",
-                   &WebContents::EnableDeviceEmulation)
-        .SetMethod("disableDeviceEmulation",
-                   &WebContents::DisableDeviceEmulation)
-        .SetMethod("toggleDevTools", &WebContents::ToggleDevTools)
-        .SetMethod("inspectElement", &WebContents::InspectElement)
-        .SetMethod("setAudioMuted", &WebContents::SetAudioMuted)
-        .SetMethod("isAudioMuted", &WebContents::IsAudioMuted)
-        .SetMethod("undo", &WebContents::Undo)
-        .SetMethod("redo", &WebContents::Redo)
-        .SetMethod("cut", &WebContents::Cut)
-        .SetMethod("copy", &WebContents::Copy)
-        .SetMethod("paste", &WebContents::Paste)
-        .SetMethod("pasteAndMatchStyle", &WebContents::PasteAndMatchStyle)
-        .SetMethod("delete", &WebContents::Delete)
-        .SetMethod("selectAll", &WebContents::SelectAll)
-        .SetMethod("unselect", &WebContents::Unselect)
-        .SetMethod("replace", &WebContents::Replace)
-        .SetMethod("replaceMisspelling", &WebContents::ReplaceMisspelling)
-        .SetMethod("focus", &WebContents::Focus)
-        .SetMethod("tabTraverse", &WebContents::TabTraverse)
-        .SetMethod("_send", &WebContents::SendIPCMessage, true)
-        .SetMethod("sendInputEvent", &WebContents::SendInputEvent)
-        .SetMethod("beginFrameSubscription",
-                   &WebContents::BeginFrameSubscription)
-        .SetMethod("endFrameSubscription", &WebContents::EndFrameSubscription)
-        .SetMethod("setSize", &WebContents::SetSize)
-        .SetMethod("setAllowTransparency", &WebContents::SetAllowTransparency)
-        .SetMethod("isGuest", &WebContents::IsGuest)
-        .SetMethod("getWebPreferences", &WebContents::GetWebPreferences)
-        .SetMethod("getOwnerBrowserWindow", &WebContents::GetOwnerBrowserWindow)
-        .SetMethod("hasServiceWorker", &WebContents::HasServiceWorker)
-        .SetMethod("unregisterServiceWorker",
-                   &WebContents::UnregisterServiceWorker)
-        .SetMethod("inspectServiceWorker", &WebContents::InspectServiceWorker)
-        .SetMethod("print", &WebContents::Print)
-        .SetMethod("_printToPDF", &WebContents::PrintToPDF)
-        .SetMethod("addWorkSpace", &WebContents::AddWorkSpace)
-        .SetMethod("removeWorkSpace", &WebContents::RemoveWorkSpace)
-        .SetProperty("session", &WebContents::Session, true)
-        .SetProperty("devToolsWebContents",
-                     &WebContents::DevToolsWebContents, true)
-        .Build());
-
-  return mate::ObjectTemplateBuilder(
-      isolate, v8::Local<v8::ObjectTemplate>::New(isolate, template_));
-}
-
-bool WebContents::IsDestroyed() const {
-  return !web_contents();
+// static
+void WebContents::BuildPrototype(v8::Isolate* isolate,
+                                 v8::Local<v8::ObjectTemplate> prototype) {
+  mate::ObjectTemplateBuilder(isolate, prototype)
+      .MakeDestroyable()
+      .SetMethod("getId", &WebContents::GetID)
+      .SetMethod("equal", &WebContents::Equal)
+      .SetMethod("_loadURL", &WebContents::LoadURL)
+      .SetMethod("downloadURL", &WebContents::DownloadURL)
+      .SetMethod("_getURL", &WebContents::GetURL)
+      .SetMethod("getTitle", &WebContents::GetTitle)
+      .SetMethod("isLoading", &WebContents::IsLoading)
+      .SetMethod("isWaitingForResponse", &WebContents::IsWaitingForResponse)
+      .SetMethod("_stop", &WebContents::Stop)
+      .SetMethod("_goBack", &WebContents::GoBack)
+      .SetMethod("_goForward", &WebContents::GoForward)
+      .SetMethod("_goToOffset", &WebContents::GoToOffset)
+      .SetMethod("isCrashed", &WebContents::IsCrashed)
+      .SetMethod("setUserAgent", &WebContents::SetUserAgent)
+      .SetMethod("getUserAgent", &WebContents::GetUserAgent)
+      .SetMethod("insertCSS", &WebContents::InsertCSS)
+      .SetMethod("savePage", &WebContents::SavePage)
+      .SetMethod("openDevTools", &WebContents::OpenDevTools)
+      .SetMethod("closeDevTools", &WebContents::CloseDevTools)
+      .SetMethod("isDevToolsOpened", &WebContents::IsDevToolsOpened)
+      .SetMethod("isDevToolsFocused", &WebContents::IsDevToolsFocused)
+      .SetMethod("enableDeviceEmulation",
+                 &WebContents::EnableDeviceEmulation)
+      .SetMethod("disableDeviceEmulation",
+                 &WebContents::DisableDeviceEmulation)
+      .SetMethod("toggleDevTools", &WebContents::ToggleDevTools)
+      .SetMethod("inspectElement", &WebContents::InspectElement)
+      .SetMethod("setAudioMuted", &WebContents::SetAudioMuted)
+      .SetMethod("isAudioMuted", &WebContents::IsAudioMuted)
+      .SetMethod("undo", &WebContents::Undo)
+      .SetMethod("redo", &WebContents::Redo)
+      .SetMethod("cut", &WebContents::Cut)
+      .SetMethod("copy", &WebContents::Copy)
+      .SetMethod("paste", &WebContents::Paste)
+      .SetMethod("pasteAndMatchStyle", &WebContents::PasteAndMatchStyle)
+      .SetMethod("delete", &WebContents::Delete)
+      .SetMethod("selectAll", &WebContents::SelectAll)
+      .SetMethod("unselect", &WebContents::Unselect)
+      .SetMethod("replace", &WebContents::Replace)
+      .SetMethod("replaceMisspelling", &WebContents::ReplaceMisspelling)
+      .SetMethod("findInPage", &WebContents::FindInPage)
+      .SetMethod("stopFindInPage", &WebContents::StopFindInPage)
+      .SetMethod("focus", &WebContents::Focus)
+      .SetMethod("tabTraverse", &WebContents::TabTraverse)
+      .SetMethod("_send", &WebContents::SendIPCMessage)
+      .SetMethod("sendInputEvent", &WebContents::SendInputEvent)
+      .SetMethod("beginFrameSubscription",
+                 &WebContents::BeginFrameSubscription)
+      .SetMethod("endFrameSubscription", &WebContents::EndFrameSubscription)
+      .SetMethod("setSize", &WebContents::SetSize)
+      .SetMethod("setAllowTransparency", &WebContents::SetAllowTransparency)
+      .SetMethod("isGuest", &WebContents::IsGuest)
+      .SetMethod("getWebPreferences", &WebContents::GetWebPreferences)
+      .SetMethod("getOwnerBrowserWindow", &WebContents::GetOwnerBrowserWindow)
+      .SetMethod("hasServiceWorker", &WebContents::HasServiceWorker)
+      .SetMethod("unregisterServiceWorker",
+                 &WebContents::UnregisterServiceWorker)
+      .SetMethod("inspectServiceWorker", &WebContents::InspectServiceWorker)
+      .SetMethod("print", &WebContents::Print)
+      .SetMethod("_printToPDF", &WebContents::PrintToPDF)
+      .SetMethod("addWorkSpace", &WebContents::AddWorkSpace)
+      .SetMethod("removeWorkSpace", &WebContents::RemoveWorkSpace)
+      .SetProperty("session", &WebContents::Session)
+      .SetProperty("devToolsWebContents", &WebContents::DevToolsWebContents);
 }
 
 AtomBrowserContext* WebContents::GetBrowserContext() const {
@@ -1080,15 +1145,6 @@ void WebContents::OnRendererMessageSync(const base::string16& channel,
                                         IPC::Message* message) {
   // webContents.emit(channel, new Event(sender, message), args...);
   EmitWithSender(base::UTF16ToUTF8(channel), web_contents(), message, args);
-}
-
-void WebContents::OnZoomLevelChanged(double level) {
-  auto manager = web_contents()->GetBrowserContext()->GetGuestManager();
-  if (!manager)
-    return;
-  manager->ForEachGuest(web_contents(),
-                        base::Bind(&NotifyZoomLevelChanged,
-                                   level));
 }
 
 // static

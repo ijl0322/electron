@@ -7,6 +7,13 @@ you can switch to a different version of the documentation at the
 you're using the GitHub interface, open the "Switch branches/tags" dropdown and
 select the tag that matches your version.
 
+## FAQ
+
+There are questions that are asked quite often, check this out before creating
+an issue:
+
+* [Electron FAQ](faq/electron-faq.md)
+
 ## Guides
 
 * [Supported Platforms](tutorial/supported-platforms.md)
@@ -18,6 +25,7 @@ select the tag that matches your version.
 * [Using Selenium and WebDriver](tutorial/using-selenium-and-webdriver.md)
 * [DevTools Extension](tutorial/devtools-extension.md)
 * [Using Pepper Flash Plugin](tutorial/using-pepper-flash-plugin.md)
+* [Using Widevine CDM Plugin](tutorial/using-widevine-cdm-plugin.md)
 
 ## Tutorials
 
@@ -58,6 +66,7 @@ select the tag that matches your version.
 
 ### Modules for the Renderer Process (Web Page):
 
+* [desktopCapturer](api/desktop-capturer.md)
 * [ipcRenderer](api/ipc-renderer.md)
 * [remote](api/remote.md)
 * [webFrame](api/web-frame.md)

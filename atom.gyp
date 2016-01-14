@@ -4,7 +4,7 @@
     'product_name%': 'Electron',
     'company_name%': 'GitHub, Inc',
     'company_abbr%': 'github',
-    'version%': '0.35.2',
+    'version%': '0.36.3',
   },
   'includes': [
     'filenames.gypi',
@@ -28,7 +28,7 @@
       'target_name': '<(project_name)',
       'type': 'executable',
       'dependencies': [
-        'compile_coffee',
+        'js2asar',
         '<(project_name)_lib',
       ],
       'sources': [
@@ -121,10 +121,6 @@
               ],
             }],
           ],
-        }, {  # OS=="mac"
-          'dependencies': [
-            'make_locale_paks',
-          ],
         }],  # OS!="mac"
         ['OS=="win"', {
           'include_dirs': [
@@ -155,6 +151,7 @@
               'destination': '<(PRODUCT_DIR)',
               'files': [
                 '<@(copied_libraries)',
+                '<(libchromiumcontent_dir)/locales',
                 '<(libchromiumcontent_dir)/libEGL.dll',
                 '<(libchromiumcontent_dir)/libGLESv2.dll',
                 '<(libchromiumcontent_dir)/icudtl.dat',
@@ -203,6 +200,7 @@
               'destination': '<(PRODUCT_DIR)',
               'files': [
                 '<@(copied_libraries)',
+                '<(libchromiumcontent_dir)/locales',
                 '<(libchromiumcontent_dir)/icudtl.dat',
                 '<(libchromiumcontent_dir)/content_shell.pak',
                 '<(libchromiumcontent_dir)/natives_blob.bin',
@@ -223,7 +221,7 @@
       'target_name': '<(project_name)_lib',
       'type': 'static_library',
       'dependencies': [
-        'atom_coffee2c',
+        'atom_js2c',
         'vendor/brightray/brightray.gyp:brightray',
         'vendor/node/node.gyp:node',
       ],
@@ -235,6 +233,8 @@
         # Defined in Chromium but not exposed in its gyp file.
         'V8_USE_EXTERNAL_STARTUP_DATA',
         'ENABLE_PLUGINS',
+        'ENABLE_PEPPER_CDMS',
+        'USE_PROPRIETARY_CODECS',
       ],
       'sources': [
         '<@(lib_sources)',
@@ -256,6 +256,12 @@
         'vendor/node/deps/cares/include',
         # The `third_party/WebKit/Source/platform/weborigin/SchemeRegistry.h` is using `platform/PlatformExport.h`.
         '<(libchromiumcontent_src_dir)/third_party/WebKit/Source',
+        # The 'third_party/libyuv/include/libyuv/scale_argb.h' is using 'libyuv/basic_types.h'.
+        '<(libchromiumcontent_src_dir)/third_party/libyuv/include',
+        # The 'third_party/webrtc/modules/desktop_capture/desktop_frame.h' is using 'webrtc/base/scoped_ptr.h'.
+        '<(libchromiumcontent_src_dir)/third_party/',
+        '<(libchromiumcontent_src_dir)/components/cdm',
+        '<(libchromiumcontent_src_dir)/third_party/widevine',
       ],
       'direct_dependent_settings': {
         'include_dirs': [
@@ -282,6 +288,7 @@
               '-lcomctl32.lib',
               '-lcomdlg32.lib',
               '-lwininet.lib',
+              '-lwinmm.lib',
             ],
           },
           'dependencies': [
@@ -344,11 +351,11 @@
       ],
     },  # target <(product_name)_lib
     {
-      'target_name': 'compile_coffee',
+      'target_name': 'js2asar',
       'type': 'none',
       'actions': [
         {
-          'action_name': 'compile_coffee',
+          'action_name': 'js2asar',
           'variables': {
             'conditions': [
               ['OS=="mac"', {
@@ -359,41 +366,41 @@
             ],
           },
           'inputs': [
-            '<@(coffee_sources)',
+            '<@(js_sources)',
           ],
           'outputs': [
             '<(resources_path)/atom.asar',
           ],
           'action': [
             'python',
-            'tools/coffee2asar.py',
+            'tools/js2asar.py',
             '<@(_outputs)',
             '<@(_inputs)',
           ],
         }
       ],
-    },  # target compile_coffee
+    },  # target js2asar
     {
-      'target_name': 'atom_coffee2c',
+      'target_name': 'atom_js2c',
       'type': 'none',
       'actions': [
         {
-          'action_name': 'atom_coffee2c',
+          'action_name': 'atom_js2c',
           'inputs': [
-            '<@(coffee2c_sources)',
+            '<@(js2c_sources)',
           ],
           'outputs': [
             '<(SHARED_INTERMEDIATE_DIR)/atom_natives.h',
           ],
           'action': [
             'python',
-            'tools/coffee2c.py',
+            'tools/js2c.py',
             '<@(_outputs)',
             '<@(_inputs)',
           ],
         }
       ],
-    },  # target atom_coffee2c
+    },  # target atom_js2c
   ],
   'conditions': [
     ['OS=="mac"', {
@@ -493,6 +500,16 @@
                 'Libraries',
               ],
             },
+            {
+              'postbuild_name': 'Copy locales',
+              'action': [
+                'tools/mac/copy-locales.py',
+                '-d',
+                '<(libchromiumcontent_dir)/locales',
+                '${BUILT_PRODUCTS_DIR}/<(product_name) Framework.framework/Resources',
+                '<@(locales)',
+              ],
+            },
           ],
           'conditions': [
             ['mas_build==0', {
@@ -536,31 +553,6 @@
             ],
           },
         },  # target helper
-      ],
-    }, {  # OS=="mac"
-      'targets': [
-        {
-          'target_name': 'make_locale_paks',
-          'type': 'none',
-          'actions': [
-            {
-              'action_name': 'Make Empty Paks',
-              'inputs': [
-                'tools/make_locale_paks.py',
-              ],
-              'outputs': [
-                '<(PRODUCT_DIR)/locales'
-              ],
-              'action': [
-                'python',
-                'tools/make_locale_paks.py',
-                '<(PRODUCT_DIR)',
-                '<@(locales)',
-              ],
-              'msvs_cygwin_shell': 0,
-            },
-          ],
-        },
       ],
     }],  # OS!="mac"
   ],

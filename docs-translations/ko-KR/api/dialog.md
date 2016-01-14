@@ -19,10 +19,10 @@ console.log(dialog.showOpenDialog({ properties: [ 'openFile', 'openDirectory', '
 
 `dialog` 모듈은 다음과 같은 메서드를 가지고 있습니다:
 
-### `dialog.showOpenDialog([browserWindow][, options][, callback])`
+### `dialog.showOpenDialog([browserWindow, ]options[, callback])`
 
 * `browserWindow` BrowserWindow (optional)
-* `options` Object (optional)
+* `options` Object
   * `title` String
   * `defaultPath` String
   * `filters` Array
@@ -63,10 +63,10 @@ console.log(dialog.showOpenDialog({ properties: [ 'openFile', 'openDirectory', '
 없습니다. 이러한 이유로 `properties`를 `['openFile', 'openDirectory']`로 설정하면
 디렉터리 선택 대화 상자가 표시됩니다.
 
-### `dialog.showSaveDialog([browserWindow][, options][, callback])`
+### `dialog.showSaveDialog([browserWindow, ]options[, callback])`
 
 * `browserWindow` BrowserWindow (optional)
-* `options` Object (optional)
+* `options` Object
   * `title` String
   * `defaultPath` String
   * `filters` Array
@@ -78,16 +78,19 @@ console.log(dialog.showOpenDialog({ properties: [ 'openFile', 'openDirectory', '
 `filters`를 지정하면 유저가 저장 가능한 파일 형식을 지정할 수 있습니다. 사용 방법은
 `dialog.showOpenDialog`의 `filters` 속성과 같습니다.
 
-`callback`이 전달되면 메서드가 비동기로 작동되며 결과는 `callback(filename)`을 통해 전달됩니다.
+`callback`이 전달되면 메서드가 비동기로 작동되며 결과는 `callback(filename)`을 통해
+전달됩니다.
 
-### `dialog.showMessageBox([browserWindow][, options][, callback])`
+### `dialog.showMessageBox([browserWindow, ]options[, callback])`
 
-* `browserWindow` BrowserWindow
+* `browserWindow` BrowserWindow (optional)
 * `options` Object
   * `type` String - `"none"`, `"info"`, `"error"`, `"question"`, `"warning"` 중
     하나를 사용할 수 있습니다. Windows에선 따로 `icon`을 설정하지 않은 이상
     "question"과 "info"는 같은 아이콘으로 표시됩니다.
   * `buttons` Array - 버튼들의 라벨을 포함한 배열입니다.
+  * `defaultId` Integer - 메시지 박스가 열렸을 때 기본적으로 선택될 버튼 배열의
+    버튼 인덱스입니다.
   * `title` String - 대화 상자의 제목입니다. 몇몇 플랫폼에선 보이지 않을 수 있습니다.
   * `message` String - 대화 상자의 본문 내용입니다.
   * `detail` String - 메시지의 추가 정보입니다.
@@ -101,7 +104,7 @@ console.log(dialog.showOpenDialog({ properties: [ 'openFile', 'openDirectory', '
     버튼을 찾으려고 시도하고 대화 상자 내에서 해당 버튼을 커맨드 링크처럼 만듭니다.
     이 기능으로 앱을 좀 더 Modern Windows 앱처럼 만들 수 있습니다. 이 기능을 원하지
     않으면 `noLink`를 true로 지정하면 됩니다.
-* `callback` Function
+* `callback` Function (optional)
 
 대화 상자를 표시합니다. `browserWindow`를 지정하면 대화 상자가 완전히 닫힐 때까지
 지정한 창을 사용할 수 없습니다. 완료 시 유저가 선택한 버튼의 인덱스를 반환합니다.

@@ -1,13 +1,15 @@
 # ipcMain
 
-The `ipcMain` module, when used in the main process, handles asynchronous and
-synchronous messages sent from a renderer process (web page). Messages sent from
-a renderer will be emitted to this module.
+The `ipcMain` module is an instance of the
+[EventEmitter](https://nodejs.org/api/events.html) class. When used in the main
+process, it handles asynchronous and synchronous messages sent from a renderer
+process (web page). Messages sent from a renderer will be emitted to this
+module.
 
 ## Sending Messages
 
 It is also possible to send messages from the main process to the renderer
-process, see [webContents.send][webcontents-send] for more information.
+process, see [webContents.send](web-contents.md#webcontentssendchannel-arg1-arg2-) for more information.
 
 * When sending a message, the event name is the `channel`.
 * To reply a synchronous message, you need to set `event.returnValue`.
@@ -54,6 +56,28 @@ The `ipcMain` module has the following method to listen for events:
 When the event occurs the `callback` is called with an `event` object and a
 message, `arg`.
 
+Once done listening for messages, if you longer want to activate this callback
+and for whatever reason can't merely stop sending messages on the channel, you
+can use:
+
+### `ipcMain.removeListener(channel, callback)`
+
+* `channel` String - The event name.
+* `callback` Function - The reference to the same function that you used for
+  `ipcMain.on(channel, callback)`
+
+Alternatively, if you don't have access to the same callback, you can use:
+
+### `ipcMain.removeAllListeners(channel)`
+
+* `channel` String - The event name.
+
+This has the expected effect of removing *all* handlers to this ipc channel.
+
+Because of this class' inheritance from the `EventEmitter` node class, you can
+also use `ipcMain.once(channel, callback)` to fire handlers meant to occur only
+once, as in, they won't be activated after one call of `callback`
+
 ## IPC Event
 
 The `event` object passed to the `callback` has the following methods:
@@ -66,6 +90,4 @@ Set this to the value to be returned in a synchronous message.
 
 Returns the `webContents` that sent the message, you can call
 `event.sender.send` to reply to the asynchronous message, see
-[webContents.send][webcontents-send] for more information.
-
-[webcontents-send]: web-contents.md#webcontentssendchannel-args
+[webContents.send](web-contents.md#webcontentssendchannel-arg1-arg2-) for more information.

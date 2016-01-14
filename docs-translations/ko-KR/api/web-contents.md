@@ -130,10 +130,38 @@ Returns:
 사용자 또는 페이지가 새로운 페이지로 이동할 때 발생하는 이벤트입니다.
 `window.location` 객체가 변경되거나 사용자가 페이지의 링크를 클릭했을 때 발생합니다.
 
-이 이벤트는 `webContents.loadURL`과 `webContents.back` 같은 API를 이용하여
+이 이벤트는 `webContents.loadURL`과 `webContents.back` 같은 API를 이용한
 프로그램적으로 시작된 탐색에 대해서는 발생하지 않습니다.
 
+이 이벤트는 앵커 링크를 클릭하거나 `window.location.hash`의 값을 변경하는 등의 페이지
+내 탐색시엔 발생하지 않습니다. 대신 `did-navigate-in-page` 이벤트를 사용해야 합니다.
+
 `event.preventDefault()`를 호출하면 탐색을 방지할 수 있습니다.
+
+### Event: 'did-navigate'
+
+Returns:
+
+* `event` Event
+* `url` String
+
+탐색이 완료되면 발생하는 이벤트입니다.
+
+이 이벤트는 앵커 링크를 클릭하거나 `window.location.hash`의 값을 변경하는 등의 페이지
+내 탐색시엔 발생하지 않습니다. 대신 `did-navigate-in-page` 이벤트를 사용해야 합니다.
+
+### Event: 'did-navigate-in-page'
+
+Returns:
+
+* `event` Event
+* `url` String
+
+페이지 내의 탐색이 완료되면 발생하는 이벤트입니다.
+
+페이지 내의 탐색이 발생하면 페이지 URL이 변경되지만 페이지 밖으로의 탐색은 일어나지
+않습니다. 예를 들어 앵커 링크를 클릭했을 때, 또는 DOM `hashchange` 이벤트가 발생했을
+때로 볼 수 있습니다.
 
 ### Event: 'crashed'
 
@@ -219,6 +247,37 @@ Returns:
 
 [`app`의 `login`이벤트](app.md#event-login)와 사용 방법은 같습니다.
 
+### Event: 'found-in-page'
+
+Returns:
+
+* `event` Event
+* `result` Object
+  * `requestId` Integer
+  * `finalUpdate` Boolean - 더 많은 응답이 따르는 경우를 표시합니다.
+  * `matches` Integer (Optional) - 일치하는 개수.
+  * `selectionArea` Object (Optional) - 첫 일치 부위의 좌표.
+
+[`webContents.findInPage`](web-contents.md#webcontentsfindinpage) 요청의 결과를
+사용할 수 있을 때 발생하는 이벤트입니다.
+
+### Event: 'media-started-playing'
+
+미디어가 재생되기 시작할 때 발생하는 이벤트입니다.
+
+### Event: 'media-paused'
+
+미디어가 중지되거나 재생이 완료되었을 때 발생하는 이벤트입니다.
+
+### Event: 'did-change-theme-color'
+
+페이지의 테마 색이 변경될 때 발생하는 이벤트입니다. 이 이벤트는 보통 meta 태그에
+의해서 발생합니다:
+
+```html
+<meta name='theme-color' content='#ff0000'>
+```
+
 ## Instance Methods
 
 `webContents`객체는 다음과 같은 인스턴스 메서드들을 가지고 있습니다.
@@ -239,6 +298,13 @@ Returns:
 const options = {"extraHeaders" : "pragma: no-cache\n"}
 webContents.loadURL(url, options)
 ```
+
+### `webContents.downloadURL(url)`
+
+* `url` URL
+
+`url`의 리소스를 탐색 없이 다운로드를 시작합니다. `session`의 `will-download`
+이벤트가 발생합니다.
 
 ### `webContents.getURL()`
 
@@ -402,6 +468,46 @@ CSS 코드를 현재 웹 페이지에 삽입합니다.
 
 웹 페이지에서 `replaceMisspelling` 편집 커맨드를 실행합니다.
 
+### `webContents.findInPage(text[, options])`
+
+* `text` String - 찾을 컨텐츠, 반드시 공백이 아니여야 합니다.
+* `options` Object (Optional)
+  * `forward` Boolean - 앞에서부터 검색할지 뒤에서부터 검색할지 여부입니다. 기본값은
+    `true`입니다.
+  * `findNext` Boolean - 작업을 계속 처리할지 첫 요청만 처리할지 여부입니다. 기본값은
+    `false`입니다.
+  * `matchCase` Boolean - 검색이 대소문자를 구분할지 여부입니다. 기본값은
+    `false`입니다.
+  * `wordStart` Boolean - 단어의 시작 부분만 볼 지 여부입니다. 기본값은
+    `false`입니다.
+  * `medialCapitalAsWordStart` Boolean - `wordStart`와 합쳐질 때, 소문자 또는
+    비문자가 따라붙은 대문자로 일치가 시작하는 경우 단어 중간의 일치를 허용합니다.
+    여러가지 다른 단어 내의 일치를 허용합니다. 기본값은 `false`입니다.
+
+웹 페이지에서 `text`에 일치하는 모든 대상을 찾는 요청을 시작하고 요청에 사용된 요청을
+표현하는 `정수(integer)`를 반환합니다. 요청의 결과는
+[`found-in-page`](web-contents.md#event-found-in-page) 이벤트를 통해 취득할 수
+있습니다.
+
+### `webContents.stopFindInPage(action)`
+
+* `action` String - [`webContents.findInPage`](web-contents.md#webcontentfindinpage)
+  요청이 종료되었을 때 일어날 수 있는 작업을 지정합니다.
+  * `clearSelection` - 선택을 일반 선택으로 변경합니다.
+  * `keepSelection` - 선택을 취소합니다.
+  * `activateSelection` - 포커스한 후 선택된 노드를 클릭합니다.
+
+제공된 `action`에 대한 `webContents`의 모든 `findInPage` 요청을 중지합니다.
+
+```javascript
+webContents.on('found-in-page', function(event, result) {
+  if (result.finalUpdate)
+    webContents.stopFindInPage("clearSelection");
+});
+
+const requestId = webContents.findInPage("api");
+```
+
 ### `webContents.hasServiceWorker(callback)`
 
 * `callback` Function
@@ -444,6 +550,7 @@ print기능을 사용하지 않는 경우 전체 바이너리 크기를 줄이�
   * 1 - none
   * 2 - minimum
 * `pageSize` String - 생성되는 PDF의 페이지 크기를 지정합니다.
+  * `A5`
   * `A4`
   * `A3`
   * `Legal`
@@ -533,7 +640,7 @@ mainWindow.webContents.on('devtools-opened', function() {
 
 ### `webContents.isDevToolsFocused()`
 
-개발자 도구에 포커스가 가있는지 여부를 반화합니다.
+개발자 도구에 포커스 되어있는지 여부를 반환합니다.
 
 ### `webContents.inspectElement(x, y)`
 

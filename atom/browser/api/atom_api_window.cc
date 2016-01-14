@@ -107,7 +107,6 @@ void TranslateOldOptions(v8::Isolate* isolate, v8::Local<v8::Object> options) {
   }
 }
 
-#if defined(OS_WIN)
 // Converts binary data to Buffer.
 v8::Local<v8::Value> ToBuffer(v8::Isolate* isolate, void* val, int size) {
   auto buffer = node::Buffer::New(isolate, static_cast<char*>(val), size);
@@ -116,7 +115,6 @@ v8::Local<v8::Value> ToBuffer(v8::Isolate* isolate, void* val, int size) {
   else
     return buffer.ToLocalChecked();
 }
-#endif
 
 }  // namespace
 
@@ -157,13 +155,12 @@ Window::Window(v8::Isolate* isolate, const mate::Dictionary& options) {
 }
 
 Window::~Window() {
-  if (window_)
-    Destroy();
-}
+  if (!window_->IsClosed())
+    window_->CloseContents(nullptr);
 
-void Window::OnPageTitleUpdated(bool* prevent_default,
-                                const std::string& title) {
-  *prevent_default = Emit("page-title-updated", title);
+  // Destroy the native window in next tick because the native code might be
+  // iterating all windows.
+  base::MessageLoop::current()->DeleteSoon(FROM_HERE, window_.release());
 }
 
 void Window::WillCloseWindow(bool* prevent_default) {
@@ -171,19 +168,19 @@ void Window::WillCloseWindow(bool* prevent_default) {
 }
 
 void Window::OnWindowClosed() {
-  if (api_web_contents_) {
-    api_web_contents_->DestroyWebContents();
-    api_web_contents_ = nullptr;
-    web_contents_.Reset();
-  }
+  api_web_contents_->DestroyWebContents();
 
   RemoveFromWeakMap();
   window_->RemoveObserver(this);
 
+  // We can not call Destroy here because we need to call Emit first, but we
+  // also do not want any method to be used, so just mark as destroyed here.
+  MarkDestroyed();
+
   Emit("closed");
 
-  // Clean up the resources after window has been closed.
-  base::MessageLoop::current()->DeleteSoon(FROM_HERE, window_.release());
+  // Destroy the native class when window is closed.
+  base::MessageLoop::current()->PostTask(FROM_HERE, GetDestroyClosure());
 }
 
 void Window::OnWindowBlur() {
@@ -279,15 +276,6 @@ mate::Wrappable* Window::New(v8::Isolate* isolate, mate::Arguments* args) {
   }
 
   return new Window(isolate, options);
-}
-
-bool Window::IsDestroyed() const {
-  return !window_ || window_->IsClosed();
-}
-
-void Window::Destroy() {
-  if (window_)
-    window_->CloseContents(nullptr);
 }
 
 void Window::Close() {
@@ -478,10 +466,6 @@ bool Window::IsWebViewFocused() {
   return window_->IsWebViewFocused();
 }
 
-bool Window::IsDevToolsFocused() {
-  return window_->IsDevToolsFocused();
-}
-
 void Window::SetRepresentedFilename(const std::string& filename) {
   window_->SetRepresentedFilename(filename);
 }
@@ -496,6 +480,10 @@ void Window::SetDocumentEdited(bool edited) {
 
 bool Window::IsDocumentEdited() {
   return window_->IsDocumentEdited();
+}
+
+void Window::SetIgnoreMouseEvents(bool ignore) {
+  return window_->SetIgnoreMouseEvents(ignore);
 }
 
 void Window::CapturePage(mate::Arguments* args) {
@@ -604,6 +592,12 @@ void Window::SetAspectRatio(double aspect_ratio, mate::Arguments* args) {
   window_->SetAspectRatio(aspect_ratio, extra_size);
 }
 
+v8::Local<v8::Value> Window::GetNativeWindowHandle() {
+  gfx::AcceleratedWidget handle = window_->GetAcceleratedWidget();
+  return ToBuffer(
+      isolate(), static_cast<void*>(&handle), sizeof(gfx::AcceleratedWidget));
+}
+
 void Window::SetVisibleOnAllWorkspaces(bool visible) {
   return window_->SetVisibleOnAllWorkspaces(visible);
 }
@@ -627,8 +621,7 @@ v8::Local<v8::Value> Window::WebContents(v8::Isolate* isolate) {
 void Window::BuildPrototype(v8::Isolate* isolate,
                             v8::Local<v8::ObjectTemplate> prototype) {
   mate::ObjectTemplateBuilder(isolate, prototype)
-      .SetMethod("destroy", &Window::Destroy, true)
-      .SetMethod("isDestroyed", &Window::IsDestroyed, true)
+      .MakeDestroyable()
       .SetMethod("close", &Window::Close)
       .SetMethod("focus", &Window::Focus)
       .SetMethod("isFocused", &Window::IsFocused)
@@ -645,6 +638,7 @@ void Window::BuildPrototype(v8::Isolate* isolate,
       .SetMethod("setFullScreen", &Window::SetFullScreen)
       .SetMethod("isFullScreen", &Window::IsFullscreen)
       .SetMethod("setAspectRatio", &Window::SetAspectRatio)
+      .SetMethod("getNativeWindowHandle", &Window::GetNativeWindowHandle)
       .SetMethod("getBounds", &Window::GetBounds)
       .SetMethod("setBounds", &Window::SetBounds)
       .SetMethod("getSize", &Window::GetSize)
@@ -673,10 +667,10 @@ void Window::BuildPrototype(v8::Isolate* isolate,
       .SetMethod("getRepresentedFilename", &Window::GetRepresentedFilename)
       .SetMethod("setDocumentEdited", &Window::SetDocumentEdited)
       .SetMethod("isDocumentEdited", &Window::IsDocumentEdited)
+      .SetMethod("setIgnoreMouseEvents", &Window::SetIgnoreMouseEvents)
       .SetMethod("focusOnWebView", &Window::FocusOnWebView)
       .SetMethod("blurWebView", &Window::BlurWebView)
       .SetMethod("isWebViewFocused", &Window::IsWebViewFocused)
-      .SetMethod("isDevToolsFocused", &Window::IsDevToolsFocused)
       .SetMethod("capturePage", &Window::CapturePage)
       .SetMethod("setProgressBar", &Window::SetProgressBar)
       .SetMethod("setOverlayIcon", &Window::SetOverlayIcon)
@@ -700,8 +694,8 @@ void Window::BuildPrototype(v8::Isolate* isolate,
       .SetMethod("showDefinitionForSelection",
                  &Window::ShowDefinitionForSelection)
 #endif
-      .SetProperty("id", &Window::ID, true)
-      .SetProperty("webContents", &Window::WebContents, true);
+      .SetProperty("id", &Window::ID)
+      .SetProperty("webContents", &Window::WebContents);
 }
 
 // static

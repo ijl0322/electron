@@ -62,8 +62,10 @@ class NativeWindowMac : public NativeWindow {
   std::string GetRepresentedFilename() override;
   void SetDocumentEdited(bool edited) override;
   bool IsDocumentEdited() override;
+  void SetIgnoreMouseEvents(bool ignore) override;
   bool HasModalDialog() override;
   gfx::NativeWindow GetNativeWindow() override;
+  gfx::AcceleratedWidget GetAcceleratedWidget() override;
   void SetProgressBar(double progress) override;
   void SetOverlayIcon(const gfx::Image& overlay,
                       const std::string& description) override;
@@ -75,6 +77,10 @@ class NativeWindowMac : public NativeWindow {
   // Refresh the DraggableRegion views.
   void UpdateDraggableRegionViews() {
     UpdateDraggableRegionViews(draggable_regions_);
+  }
+
+  bool should_hide_native_toolbar_in_fullscreen() const {
+    return should_hide_native_toolbar_in_fullscreen_;
   }
 
  protected:
@@ -116,6 +122,8 @@ class NativeWindowMac : public NativeWindow {
 
   // The presentation options before entering kiosk mode.
   NSApplicationPresentationOptions kiosk_options_;
+
+  bool should_hide_native_toolbar_in_fullscreen_;
 
   DISALLOW_COPY_AND_ASSIGN(NativeWindowMac);
 };

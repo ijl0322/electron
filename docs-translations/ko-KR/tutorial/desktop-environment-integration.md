@@ -24,7 +24,7 @@ myNotification.onclick = function () {
 }
 ```
 
-위 코드를 통해 생성한 데스크톱 알림은 각 운영체제 모두 비슷한 사용자 경험을 제공합니다.
+위 코드를 통해 생성한 데스크톱 알림은 각 운영체제 모두 비슷한 사용자 경험을 제공하지만,
 하지만 몇 가지 다른 점들이 있습니다.
 
 ### Windows
@@ -34,21 +34,10 @@ myNotification.onclick = function () {
   만들어 놔야 합니다. 이 바로가기는 반드시 시작 화면에 설치되어 있어야 합니다. 참고로
   반드시 시작 화면에 고정 할 필요는 없습니다.
 * Windows 7과 그 이하 버전은 데스크톱 알림을 지원하지 않습니다.
-  혹시 "풍선 팝업 알림" 기능을 찾는다면 [Tray API](tray-balloon)를 사용하세요.
+  혹시 "풍선 팝업 알림" 기능을 찾는다면 [Tray API][tray-balloon]를 사용하세요.
 
-이미지를 데스크톱 알림에 사용하려면 알림 옵션의 `icon` 속성에 로컬 이미지 파일
-(`png` 권장)을 지정하면 됩니다. 데스크톱 알림은 잘못된 경로를 지정하거나 `http/https`
-기반의 URL을 지정해도 이미지가 보이지 않을 뿐 정상 작동합니다.
-
-```javascript
-new Notification('Title', {
-  body: 'Notification with icon',
-  icon: 'file:///C:/Users/feriese/Desktop/icon.png'
-});
-```
-
-또한 `body`의 최대 길이는 250자 입니다. Windows 개발팀에선 알림 문자열을 200자 이하로
-유지하는 것을 권장합니다.
+또한 알림 본문의 최대 길이는 250자 입니다. Windows 개발팀에선 알림 문자열을 200자
+이하로 유지하는 것을 권장합니다.
 
 ### Linux
 
@@ -67,8 +56,8 @@ OS X에서의 데스크톱 알림은 아주 직관적입니다. 하지만 데스
 
 ## 최근 사용한 문서 (Windows & OS X)
 
-알다 싶이 Windows와 OS X는 JumpList 또는 dock 메뉴를 통해 최근 문서 리스트에 쉽게
-접근할 수 있습니다.
+Windows와 OS X는 JumpList 또는 dock 메뉴를 통해 최근 문서 리스트에 쉽게 접근할 수
+있습니다.
 
 __JumpList:__
 
