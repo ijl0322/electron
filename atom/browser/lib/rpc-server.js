@@ -1,20 +1,16 @@
-var IDWeakMap, callFunction, electron, exceptionToMeta, ipcMain, objectsRegistry, path, plainObjectToMeta, unwrapArgs, v8Util, valueToMeta,
-  slice = [].slice;
+'use strict';
 
-path = require('path');
+const path = require('path');
+const electron = require('electron');
+const ipcMain = electron.ipcMain;
+const objectsRegistry = require('./objects-registry');
+const v8Util = process.atomBinding('v8_util');
+const IDWeakMap = process.atomBinding('id_weak_map').IDWeakMap;
 
-electron = require('electron');
-
-ipcMain = electron.ipcMain;
-
-objectsRegistry = require('./objects-registry');
-
-v8Util = process.atomBinding('v8_util');
-
-IDWeakMap = process.atomBinding('id_weak_map').IDWeakMap;
+var slice = [].slice;
 
 // Convert a real value into meta data.
-valueToMeta = function(sender, value, optimizeSimpleObject) {
+var valueToMeta = function(sender, value, optimizeSimpleObject) {
   var el, field, i, len, meta, name;
   if (optimizeSimpleObject == null) {
     optimizeSimpleObject = false;
@@ -47,7 +43,7 @@ valueToMeta = function(sender, value, optimizeSimpleObject) {
   }
 
   // Treat the arguments object as array.
-  if (meta.type === 'object' && (value.callee != null) && (value.length != null)) {
+  if (meta.type === 'object' && (value.hasOwnProperty('callee')) && (value.length != null)) {
     meta.type = 'array';
   }
   if (meta.type === 'array') {
@@ -97,7 +93,7 @@ valueToMeta = function(sender, value, optimizeSimpleObject) {
 };
 
 // Convert object to meta by value.
-plainObjectToMeta = function(obj) {
+var plainObjectToMeta = function(obj) {
   return Object.getOwnPropertyNames(obj).map(function(name) {
     return {
       name: name,
@@ -107,7 +103,7 @@ plainObjectToMeta = function(obj) {
 };
 
 // Convert Error into meta data.
-exceptionToMeta = function(error) {
+var exceptionToMeta = function(error) {
   return {
     type: 'exception',
     message: error.message,
@@ -116,10 +112,10 @@ exceptionToMeta = function(error) {
 };
 
 // Convert array of meta data from renderer into array of real values.
-unwrapArgs = function(sender, args) {
+var unwrapArgs = function(sender, args) {
   var metaToValue;
   metaToValue = function(meta) {
-    var i, len, member, ref, rendererReleased, ret, returnValue;
+    var i, len, member, ref, rendererReleased, returnValue;
     switch (meta.type) {
       case 'value':
         return meta.value;
@@ -136,7 +132,7 @@ unwrapArgs = function(sender, args) {
           then: metaToValue(meta.then)
         });
       case 'object':
-        ret = v8Util.createObjectWithName(meta.name);
+        let ret = v8Util.createObjectWithName(meta.name);
         ref = meta.members;
         for (i = 0, len = ref.length; i < len; i++) {
           member = ref[i];
@@ -153,31 +149,30 @@ unwrapArgs = function(sender, args) {
         if (!sender.callbacks) {
           sender.callbacks = new IDWeakMap;
           sender.on('render-view-deleted', function() {
-            return sender.callbacks.clear();
+            return this.callbacks.clear();
           });
         }
-        if (sender.callbacks.has(meta.id)) {
+
+        if (sender.callbacks.has(meta.id))
           return sender.callbacks.get(meta.id);
-        }
+
+        // Prevent the callback from being called when its page is gone.
         rendererReleased = false;
-        objectsRegistry.once("clear-" + (sender.getId()), function() {
-          return rendererReleased = true;
+        sender.once('render-view-deleted', function() {
+          rendererReleased = true;
         });
-        ret = function() {
-          if (rendererReleased) {
-            throw new Error("Attempting to call a function in a renderer window that has been closed or released. Function provided here: " + meta.location + ".");
-          }
-          return sender.send('ATOM_RENDERER_CALLBACK', meta.id, valueToMeta(sender, arguments));
+
+        let callIntoRenderer = function(...args) {
+          if (rendererReleased)
+            throw new Error(`Attempting to call a function in a renderer window that has been closed or released. Function provided here: ${meta.location}.`);
+          sender.send('ATOM_RENDERER_CALLBACK', meta.id, valueToMeta(sender, args));
         };
-        v8Util.setDestructor(ret, function() {
-          if (rendererReleased) {
-            return;
-          }
-          sender.callbacks.remove(meta.id);
-          return sender.send('ATOM_RENDERER_RELEASE_CALLBACK', meta.id);
+        v8Util.setDestructor(callIntoRenderer, function() {
+          if (!rendererReleased)
+            sender.send('ATOM_RENDERER_RELEASE_CALLBACK', meta.id);
         });
-        sender.callbacks.set(meta.id, ret);
-        return ret;
+        sender.callbacks.set(meta.id, callIntoRenderer);
+        return callIntoRenderer;
       default:
         throw new TypeError("Unknown type: " + meta.type);
     }
@@ -187,7 +182,7 @@ unwrapArgs = function(sender, args) {
 
 // Call a function and send reply asynchronously if it's a an asynchronous
 // style function and the caller didn't pass a callback.
-callFunction = function(event, func, caller, args) {
+var callFunction = function(event, func, caller, args) {
   var e, error1, funcMarkedAsync, funcName, funcPassedCallback, ref, ret;
   funcMarkedAsync = v8Util.getHiddenValue(func, 'asynchronous');
   funcPassedCallback = typeof args[args.length - 1] === 'function';
