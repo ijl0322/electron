@@ -74,8 +74,8 @@ It creates a new `BrowserWindow` with native properties as set by the `options`.
   * `enableLargerThanScreen` Boolean - Enable the window to be resized larger
     than screen. Default is `false`.
   * `backgroundColor` String - Window's background color as Hexadecimal value,
-    like `#66CD00` or `#FFF`. This is only implemented on Linux and Windows.
-    Default is `#000` (black).
+    like `#66CD00` or `#FFF`. Default is `#000` (black) for Linux and Windows,
+    `#FFF` for Mac (or clear if transparent).
   * `darkTheme` Boolean - Forces using dark theme for the window, only works on
     some GTK+3 desktop environments. Default is `false`.
   * `transparent` Boolean - Makes the window [transparent](frameless-window.md).
@@ -160,6 +160,15 @@ The `webPreferences` option is an object that can have following properties:
   `CSSVariables,KeyboardEventKey`. The full list of supported feature strings
   can be found in the [setFeatureEnabledFromString][blink-feature-string]
   function.
+* `defaultFontFamily` Object - Sets the default font for the font-family.
+  * `standard` String - Defaults to `Times New Roman`.
+  * `serif` String - Defaults to `Times New Roman`.
+  * `sansSerif` String - Defaults to `Arial`.
+  * `monospace` String - Defaults to `Courier New`.
+* `defaultFontSize` Integer - Defaults to `16`.
+* `defaultMonospaceFontSize` Integer - Defaults to `13`.
+* `minimumFontSize` Integer - Defaults to `0`.
+* `defaultEncoding` String - Defaults to `ISO-8859-1`.
 
 ## Events
 
@@ -358,9 +367,6 @@ labeled as such.
 Force closing the window, the `unload` and `beforeunload` event won't be emitted
 for the web page, and `close` event will also not be emitted
 for this window, but it guarantees the `closed` event will be emitted.
-
-You should only use this method when the renderer process (web page) has
-crashed.
 
 ### `win.close()`
 

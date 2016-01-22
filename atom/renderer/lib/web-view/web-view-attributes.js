@@ -87,7 +87,7 @@ class AllowTransparencyAttribute extends BooleanAttribute {
     super(webViewConstants.ATTRIBUTE_ALLOWTRANSPARENCY, webViewImpl);
   }
 
-  handleMutation(oldValue, newValue) {
+  handleMutation() {
     if (!this.webViewImpl.guestInstanceId) {
       return;
     }
@@ -105,7 +105,7 @@ class AutosizeDimensionAttribute extends WebViewAttribute {
     return parseInt(this.webViewImpl.webviewNode.getAttribute(this.name)) || 0;
   }
 
-  handleMutation(oldValue, newValue) {
+  handleMutation() {
     if (!this.webViewImpl.guestInstanceId) {
       return;
     }
@@ -288,6 +288,13 @@ class PreloadAttribute extends WebViewAttribute {
   }
 }
 
+// Attribute that specifies the blink features to be enabled.
+class BlinkFeaturesAttribute extends WebViewAttribute {
+  constructor(webViewImpl) {
+    super(webViewConstants.ATTRIBUTE_BLINKFEATURES, webViewImpl);
+  }
+}
+
 // Sets up all of the webview attributes.
 WebViewImpl.prototype.setupWebViewAttributes = function() {
   var attribute, autosizeAttributes, i, len, results;
@@ -303,6 +310,7 @@ WebViewImpl.prototype.setupWebViewAttributes = function() {
   this.attributes[webViewConstants.ATTRIBUTE_DISABLEWEBSECURITY] = new BooleanAttribute(webViewConstants.ATTRIBUTE_DISABLEWEBSECURITY, this);
   this.attributes[webViewConstants.ATTRIBUTE_ALLOWPOPUPS] = new BooleanAttribute(webViewConstants.ATTRIBUTE_ALLOWPOPUPS, this);
   this.attributes[webViewConstants.ATTRIBUTE_PRELOAD] = new PreloadAttribute(this);
+  this.attributes[webViewConstants.ATTRIBUTE_BLINKFEATURES] = new BlinkFeaturesAttribute(this);
   autosizeAttributes = [webViewConstants.ATTRIBUTE_MAXHEIGHT, webViewConstants.ATTRIBUTE_MAXWIDTH, webViewConstants.ATTRIBUTE_MINHEIGHT, webViewConstants.ATTRIBUTE_MINWIDTH];
   results = [];
   for (i = 0, len = autosizeAttributes.length; i < len; i++) {

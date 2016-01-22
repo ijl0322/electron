@@ -158,18 +158,21 @@ Menu.prototype._init = function() {
   };
 };
 
-Menu.prototype.popup = function(window, x, y) {
-  if ((window != null ? window.constructor : void 0) !== BrowserWindow) {
+Menu.prototype.popup = function(window, x, y, positioningItem) {
+  if (typeof window != 'object' || window.constructor !== BrowserWindow) {
     // Shift.
+    positioningItem = y;
     y = x;
     x = window;
     window = BrowserWindow.getFocusedWindow();
   }
-  if ((x != null) && (y != null)) {
-    return this._popupAt(window, x, y);
-  } else {
-    return this._popup(window);
-  }
+
+  // Default parameters.
+  if (typeof x !== 'number') x = -1;
+  if (typeof y !== 'number') y = -1;
+  if (typeof positioningItem !== 'number') positioningItem = 0;
+
+  this.popupAt(window, x, y, positioningItem);
 };
 
 Menu.prototype.append = function(item) {
@@ -210,7 +213,7 @@ Menu.prototype.insert = function(pos, item) {
           return v8Util.getHiddenValue(item, 'checked');
         },
         set: (function(_this) {
-          return function(val) {
+          return function() {
             var j, len, otherItem, ref1;
             ref1 = _this.groupsMap[item.groupId];
             for (j = 0, len = ref1.length; j < len; j++) {
