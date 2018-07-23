@@ -590,7 +590,8 @@ void NativeWindowMac::SetBounds(const gfx::Rect& bounds, bool animate) {
   cocoa_bounds.origin.y =
       NSHeight([screen frame]) - bounds.height() - bounds.y();
 
-  [window_ setFrame:cocoa_bounds display:YES animate:animate];
+  [window_ setFrame:cocoa_bounds display:YES animate: animate];
+  [window_ layoutIfNeeded];
 }
 
 gfx::Rect NativeWindowMac::GetBounds() {
